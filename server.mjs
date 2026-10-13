@@ -14,7 +14,7 @@ app.post('/api/orders', upload.single('receipt'), async (req,res) => {
   try {
     if (!req.file) return res.status(400).json({error:'Adjunta el comprobante de pago.'});
     const order = JSON.parse(req.body.order || '{}');
-    if (!order.customer || !order.email || !order.agency?.id || !order.agency?.address || !order.items?.length || !Number.isFinite(order.total)) return res.status(400).json({error:'Faltan datos del pedido. Regresa al paso de entrega y completa el formulario.'});
+    if (!order.customer || !order.email || !order.province || !order.district || !order.items?.length || !Number.isFinite(order.total)) return res.status(400).json({error:'Faltan datos del pedido. Regresa al paso de entrega y completa el formulario.'});
     const required = ['SMTP_HOST','SMTP_USER','SMTP_PASS'];
     const missing = required.filter(key => !process.env[key]);
     if (missing.length) return res.status(503).json({error:'La tienda aún debe configurar el envío de correos. Contacta a Astral Brand por WhatsApp para completar tu compra.'});
@@ -27,11 +27,11 @@ app.post('/api/orders', upload.single('receipt'), async (req,res) => {
       'Cliente: '+order.customer,
       'Correo: '+order.email,
       'Entrega: '+(order.deliveryMethod||'Recojo en agencia'),
+      'Zona de entrega: '+order.district+', '+order.province,
+      'Modalidad de entrega: '+order.deliveryMethod,
       'Agencia Shalom: '+order.agency.name,
-      'Dirección de agencia: '+order.agency.address,
-      'Zona de búsqueda: '+order.district,
-      'Departamento / región: '+order.region,
-      'Código de agencia: '+order.agency.id,
+      'Referencia de ubicación: '+order.agency.address,
+      'Plazo estimado de recepción: '+(order.estimatedDelivery||'2–4 días hábiles'),
       'Método de pago: '+order.payment,
       '', lines, '',
       'Subtotal: S/ '+order.subtotal,

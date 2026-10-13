@@ -8,3 +8,5 @@
 .finder-label{font-size:9px!important;font-weight:600;color:#55574f!important;margin:3px 0 -4px!important}
 
 .chosen-agency-summary{display:grid;gap:6px;background:#ebe9e1;padding:12px;margin:12px 0;font-size:9px}.chosen-agency-summary b{font-size:10px}.chosen-agency-summary small{line-height:1.5;color:#707168}
+
+.delivery-note{grid-column:1/-1;display:grid;gap:8px;padding:13px;background:#ebe9e1;color:#292b25;font-size:10px;line-height:1.55}.delivery-note b{font-size:10px}.delivery-note small{font-size:9px;color:#686960}.delivery-note a{font-size:9px;text-decoration:underline}

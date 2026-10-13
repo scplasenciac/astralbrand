@@ -32,16 +32,6 @@ function calculateSubtotal(bag) {
     return sum + collectionTotal;
   },0);
 }
-const SHALOM_API = 'https://api.shalom-api.lat/public/agencies/search';
-async function searchAgencies(params) {
-  const query = new URLSearchParams({...params, per_page:'6'});
-  const response = await fetch(SHALOM_API+'?'+query);
-  if (!response.ok) throw new Error('No pudimos consultar las agencias ahora. Intenta nuevamente o búscalas en Shalom.');
-  const result = await response.json();
-  if (!result.success || !Array.isArray(result.data)) throw new Error('El directorio de agencias no está disponible en este momento.');
-  return result.data.filter(a => a.direccion && a.nombre && Number.isFinite(Number(a.latitud)) && Number.isFinite(Number(a.longitud)));
-}
-const peruRegions = ['Amazonas','Áncash','Apurímac','Arequipa','Ayacucho','Cajamarca','Callao','Cusco','Huancavelica','Huánuco','Ica','Junín','La Libertad','Lambayeque','Lima','Loreto','Madre de Dios','Moquegua','Pasco','Piura','Puno','San Martín','Tacna','Tumbes','Ucayali'];
 
 function App() {
   const [bag, setBag] = useState([]);
@@ -49,17 +39,15 @@ function App() {
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState('cart');
   const [pay, setPay] = useState('digital');
-  const [form, setForm] = useState({name:'', email:'', region:'Lima', district:'', agency:null});
-  const [agencies, setAgencies] = useState([]);
-  const [findingAgencies, setFindingAgencies] = useState(false);
-  const [locationUsed, setLocationUsed] = useState(false);
+  const [form, setForm] = useState({name:'', email:'', province:'', district:''});
   const [receipt, setReceipt] = useState(null);
   const [sending, setSending] = useState(false);
   const [order, setOrder] = useState('');
   const [error, setError] = useState('');
   const subtotal = useMemo(() => calculateSubtotal(bag), [bag]);
-  const district = form.district.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const shipping = form.region === 'Lima' && ['san borja','miraflores'].includes(district) ? 0 : form.region === 'Lima' ? 8 : 12;
+  const normalize = value => value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const isFreeDistrict = ['lima','lima metropolitana'].includes(normalize(form.province)) && ['san borja','miraflores'].includes(normalize(form.district));
+  const shipping = isFreeDistrict ? 0 : 12;
   const total = subtotal + shipping;
   const update = (key, value) => setForm(current => ({...current, [key]: value}));
 
@@ -69,34 +57,9 @@ function App() {
   }
   function remove(id) { setBag(current => current.filter(item => item.id !== id)); }
   function closeCart() { setOpen(false); setStage('cart'); setError(''); }
-  async function findNearbyAgencies() {
-    setError(''); setFindingAgencies(true);
-    try {
-      const position = await new Promise((resolve,reject)=>navigator.geolocation
-        ? navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:false,timeout:12000,maximumAge:300000})
-        : reject(new Error('Este navegador no permite compartir ubicación.')));
-      const {latitude,longitude}=position.coords;
-      const found=await searchAgencies({near:latitude+','+longitude});
-      setAgencies(found); setLocationUsed(true);
-      const locatedRegion=found[0]&&peruRegions.find(region=>region.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')===String(found[0].departamento||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''));
-      setForm(current=>({...current,agency:null,region:locatedRegion||current.region}));
-      if (!found.length) setError('No encontramos agencias cercanas. Busca por tu distrito.');
-    } catch(err) { setError(err.code===1?'Permite el acceso a tu ubicación o busca por departamento, provincia o distrito.':err.message||'No pudimos encontrar agencias. Busca por tu distrito.'); }
-    finally { setFindingAgencies(false); }
-  }
-  async function findAgenciesByArea() {
-    if (!form.district.trim()) { setError('Escribe tu distrito para buscar agencias cercanas.'); return; }
-    setError(''); setFindingAgencies(true);
-    try {
-      const found=await searchAgencies({departamento:form.region.toUpperCase(),q:form.district});
-      setAgencies(found); setLocationUsed(false); setForm(current=>({...current,agency:null}));
-      if (!found.length) setError('No encontramos agencias para esa zona. Prueba con otro distrito o ciudad.');
-    } catch(err) { setError(err.message||'No pudimos consultar las agencias. Intenta nuevamente.'); }
-    finally { setFindingAgencies(false); }
-  }
   function validAddress() {
-    if (!form.name.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email) || (!form.district.trim() && !locationUsed) || !form.agency) {
-      setError('Completa tu correo, nombre, ubicación y selecciona una agencia Shalom. Revisa que el correo tenga un formato válido.'); return false;
+    if (!form.name.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email) || !form.province.trim() || !form.district.trim()) {
+      setError('Completa tu correo, nombre, provincia y distrito. Revisa que el correo tenga un formato válido.'); return false;
     }
     setError(''); return true;
   }
@@ -108,10 +71,10 @@ function App() {
       const data = new FormData();
       data.append('receipt', receipt);
       data.append('order', JSON.stringify({
-        customer:form.name, email:form.email, region:form.region, district:form.district,
-        deliveryMethod:'Recojo en agencia Shalom', agency:{id:form.agency.ter_id,name:form.agency.nombre,address:form.agency.direccion,district:form.agency.zona,phone:form.agency.telefono}, payment:pay === 'digital' ? 'Yape / Plin' : 'Depósito en cuenta',
+        customer:form.name, email:form.email, province:form.province, district:form.district,
+        deliveryMethod:isFreeDistrict ? 'Entrega gratis en San Borja / Miraflores (coordinar dirección)' : 'Recojo en la agencia Shalom más cercana', agency:{name:'Agencia Shalom más cercana a '+form.district,address:form.province}, payment:pay === 'digital' ? 'Yape / Plin' : 'Depósito en cuenta',
         items:bag.map(item => ({name:item.product[1], artist:item.product[0], collection:item.collectionName, size:item.size, price:item.price})),
-        subtotal, shipping, total
+        subtotal, shipping, total, estimatedDelivery:shipping===0?'Entrega local coordinada':'2–4 días hábiles'
       }));
       const orderApi = import.meta.env.VITE_ORDER_API_URL;
       if (import.meta.env.PROD && !orderApi) throw new Error('La tienda está publicada, pero el servidor para recibir pedidos aún no está conectado. Escríbenos por WhatsApp para completar tu compra.');
@@ -137,10 +100,10 @@ function App() {
     <footer><a className="logo" href="#"><img className="brand-logo-image" src={import.meta.env.BASE_URL+'assets/logomarca.jpg'} alt="Astral Brand Clothing"/></a><span>ENCUENTRA TU FRECUENCIA.</span><a href="https://www.instagram.com/astralbrandclothing/" target="_blank" rel="noreferrer">Instagram ↗</a><a href={support} target="_blank" rel="noreferrer">Soporte WhatsApp ↗</a><small>© 2026 ASTRAL BRAND · LIMA, PERÚ</small></footer>
     {open&&<div className="shade" onClick={event=>event.target===event.currentTarget&&closeCart()}><aside><button className="closex" onClick={closeCart}>×</button>
       {stage==='cart'&&<><p className="eyebrow">TU SELECCIÓN</p><h2>Bolsa ({bag.length})</h2>{!bag.length?<p>Tu bolsa está en órbita.<br/>Elige un diseño para empezar.</p>:<>{bag.map(item=><div className="item" key={item.id}><span>{item.collectionName} · {item.product[1]} · talla {item.size} · S/ {item.price}</span><button onClick={()=>remove(item.id)}>×</button></div>)}<p className="discount">Los precios y promociones se calculan por colección.</p><div className="total">Subtotal <b>S/ {subtotal}</b></div><button className="btn full" onClick={()=>{setStage('address');setError('')}}>Continuar al pago　→</button></>}{bag.length===0&&<button className="btn" onClick={closeCart}>Ver colección</button>}</>}
-      {stage==='address'&&<><p className="eyebrow">PASO 1 DE 3 · ENTREGA</p><h2>¿Dónde lo llevamos?</h2><div className="fields"><label className="email-field">Correo electrónico · aquí recibirás la confirmación<input type="email" value={form.email} onChange={e=>update('email',e.target.value)} autoComplete="email" placeholder="ejemplo@correo.com" required/></label><label>Nombre completo<input value={form.name} onChange={e=>update('name',e.target.value)} autoComplete="name" placeholder="Tu nombre" required/></label><label>Departamento / región<select value={form.region} onChange={e=>update('region',e.target.value)}>{peruRegions.map(region=><option key={region}>{region}</option>)}</select></label><div className="wide agency-finder"><p className="finder-title">Recojo en agencia Shalom</p><p className="finder-copy">Comparte tu ubicación para ordenar las agencias por cercanía. También puedes buscar por distrito o ciudad. Tu ubicación precisa solo se usa para encontrar sucursales cercanas.</p><button type="button" className="location-button" onClick={findNearbyAgencies} disabled={findingAgencies}>{findingAgencies?'Buscando agencias…':'⌖　Usar mi ubicación actual'}</button><p className="finder-label">O busca por tu distrito o ciudad</p><div className="agency-search"><input value={form.district} onChange={e=>{update('district',e.target.value);setForm(current=>({...current,agency:null}))}} placeholder="Ej. Miraflores, Lima"/><button type="button" onClick={findAgenciesByArea} disabled={findingAgencies}>Buscar</button></div>{agencies.length>0&&<div className="agency-results" role="radiogroup" aria-label="Agencias Shalom cercanas">{agencies.map((agency,index)=><button type="button" key={agency.ter_id} className={form.agency?.ter_id===agency.ter_id?'agency-card selected':'agency-card'} onClick={()=>{setForm(current=>({...current,agency}));setError('')}}><span className="agency-dot">{form.agency?.ter_id===agency.ter_id?'✓':index+1}</span><span><b>{agency.lugar_over||agency.nombre.split('/').pop()}</b><small>{agency.direccion}</small><small>{agency.distancia_km?Number(agency.distancia_km).toFixed(1)+' km de tu ubicación · ':''}{agency.zona||agency.provincia}</small></span></button>)}</div>}{form.agency&&<p className="selected-note">✓ Agencia seleccionada: <b>{form.agency.lugar_over||form.agency.nombre}</b></p>}<a className="shalom-link" href="https://shalom.com.pe/agencias" target="_blank" rel="noreferrer">Ver directorio oficial de Shalom ↗</a></div></div><div className="shipping">Envío <b>{shipping===0?'GRATIS':'S/ '+shipping}</b><small>{shipping===0?'Entrega gratuita en San Borja y Miraflores':form.region==='Lima'?'Recojo en agencia · Lima Metropolitana':'Recojo en agencia · Provincias del Perú'}</small></div><div className="total">Total <b>S/ {total}</b></div><button className="btn full" onClick={()=>{if(validAddress())setStage('payment')}}>Continuar　→</button><button className="back" onClick={()=>setStage('cart')}>← Volver a la bolsa</button></>}
-      {stage==='payment'&&<><p className="eyebrow">PASO 2 DE 3 · MEDIO DE PAGO</p><h2>Elige cómo pagar</h2><p className="form-intro">Hola {form.name.split(' ')[0]}, tu pedido suma S/ {total}. Realiza el pago y luego adjunta el comprobante.</p><div className="chosen-agency-summary"><b>Recojo en Shalom</b><span>{form.agency?.lugar_over||form.agency?.nombre}</span><small>{form.agency?.direccion}</small></div><label className={'pay-choice '+(pay==='digital'?'active':'')}><input type="radio" name="pay" checked={pay==='digital'} onChange={()=>setPay('digital')}/><span><b>Yape o Plin</b><small>{PAYMENT_DETAILS.digital}</small></span></label><label className={'pay-choice '+(pay==='bank'?'active':'')}><input type="radio" name="pay" checked={pay==='bank'} onChange={()=>setPay('bank')}/><span><b>Depósito en cuenta</b><small>{PAYMENT_DETAILS.bank}</small></span></label><div className="checkout-total"><span>Polos</span><b>S/ {subtotal}</b><span>Envío</span><b>{shipping===0?'Gratis':'S/ '+shipping}</b><strong>Total a pagar</strong><strong>S/ {total}</strong></div><button className="btn full" onClick={()=>setStage('receipt')}>Ya pagué · Adjuntar comprobante　→</button><button className="back" onClick={()=>setStage('address')}>← Cambiar agencia</button></>}
+      {stage==='address'&&<><p className="eyebrow">PASO 1 DE 3 · ENTREGA</p><h2>¿Dónde lo llevamos?</h2><div className="fields"><label className="email-field">Correo electrónico · para contactarte sobre tu pedido<input type="email" value={form.email} onChange={e=>update('email',e.target.value)} autoComplete="email" placeholder="ejemplo@correo.com" required/></label><label>Nombre completo<input value={form.name} onChange={e=>update('name',e.target.value)} autoComplete="name" placeholder="Tu nombre" required/></label><label>Provincia<input value={form.province} onChange={e=>update('province',e.target.value)} placeholder="Ej. Lima" required/></label><label>Distrito<input value={form.district} onChange={e=>update('district',e.target.value)} placeholder="Ej. Miraflores" required/></label><div className="wide delivery-note">{isFreeDistrict?<><b>Envío gratis en {form.district}.</b><small>Coordinaremos contigo la dirección de entrega después de confirmar tu pedido.</small></>:<><b>Envío a agencia Shalom · S/ 12</b><small>Tu pedido se enviará a la agencia Shalom más cercana a <b>{form.district}, {form.province}</b>. Tiempo estimado: 2–4 días hábiles.</small></>}<a href="https://shalom.com.pe/agencias" target="_blank" rel="noreferrer">Consulta las agencias Shalom ↗</a></div></div><div className="shipping">Envío <b>{shipping===0?'GRATIS':'S/ '+shipping}</b><small>{isFreeDistrict?'Entrega coordinada en San Borja o Miraflores':'Recojo en agencia Shalom · plazo estimado de 2–4 días hábiles'}</small></div><div className="total">Total <b>S/ {total}</b></div><button className="btn full" onClick={()=>{if(validAddress())setStage('payment')}}>Continuar　→</button><button className="back" onClick={()=>setStage('cart')}>← Volver a la bolsa</button></>}
+      {stage==='payment'&&<><p className="eyebrow">PASO 2 DE 3 · MEDIO DE PAGO</p><h2>Elige cómo pagar</h2><p className="form-intro">Hola {form.name.split(' ')[0]}, tu pedido suma S/ {total}. Realiza el pago y luego adjunta el comprobante.</p><div className="chosen-agency-summary"><b>{isFreeDistrict?'Entrega gratis':'Recojo en Shalom · S/ 12'}</b><span>{form.district}, {form.province}</span><small>{isFreeDistrict?'Coordinaremos la dirección contigo.':'La agencia más cercana se asignará a tu zona. Te confirmaremos la sucursal exacta al procesar el pedido. Plazo estimado: 2–4 días hábiles.'}</small>{!isFreeDistrict&&<a href="https://shalom.com.pe/agencias" target="_blank" rel="noreferrer">Ver agencias ↗</a>}</div><label className={'pay-choice '+(pay==='digital'?'active':'')}><input type="radio" name="pay" checked={pay==='digital'} onChange={()=>setPay('digital')}/><span><b>Yape o Plin</b><small>{PAYMENT_DETAILS.digital}</small></span></label><label className={'pay-choice '+(pay==='bank'?'active':'')}><input type="radio" name="pay" checked={pay==='bank'} onChange={()=>setPay('bank')}/><span><b>Depósito en cuenta</b><small>{PAYMENT_DETAILS.bank}</small></span></label><div className="checkout-total"><span>Polos</span><b>S/ {subtotal}</b><span>Envío</span><b>{shipping===0?'Gratis':'S/ '+shipping}</b><strong>Total a pagar</strong><strong>S/ {total}</strong></div><button className="btn full" onClick={()=>setStage('receipt')}>Ya pagué · Adjuntar comprobante　→</button><button className="back" onClick={()=>setStage('address')}>← Cambiar ubicación</button></>}
       {stage==='receipt'&&<><p className="eyebrow">PASO 3 DE 3 · COMPROBANTE</p><h2>Confirma tu pago</h2><p className="form-intro">Adjunta el comprobante de {pay==='digital'?'Yape / Plin':'depósito en cuenta'}. Lo enviaremos a <b>{STORE_EMAIL}</b>.</p><form onSubmit={submitOrder}><label className="upload">{receipt?<><b>✓ {receipt.name}</b><small>Archivo listo para enviar · toca para cambiarlo</small></>:<>＋ Adjuntar comprobante<small>Imagen o PDF · máximo 8 MB</small></>}<input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={e=>setReceipt(e.target.files?.[0]||null)} required/></label><div className="checkout-total"><span>Correo del pedido</span><b>{form.email}</b><strong>Total pagado</strong><strong>S/ {total}</strong></div><button className="btn full" disabled={sending||!receipt}>{sending?'Enviando comprobante…':'Enviar comprobante y confirmar　✓'}</button></form><button className="back" onClick={()=>setStage('payment')}>← Volver a medios de pago</button></>}
-      {stage==='done'&&<div className="success"><span>✓</span><p className="eyebrow">PEDIDO CONFIRMADO</p><h2>¡Gracias, {form.name.split(' ')[0]}!</h2><p>Recibimos tu pedido <b>{order}</b> y enviamos el comprobante a Astral Brand. Te contactaremos a <b>{form.email}</b> para coordinar la entrega.</p><a className="btn full" href={support} target="_blank" rel="noreferrer">¿Necesitas ayuda? WhatsApp　↗</a><button className="back" onClick={closeCart}>Seguir explorando</button></div>}
+      {stage==='done'&&<div className="success"><span>✓</span><p className="eyebrow">PEDIDO CONFIRMADO</p><h2>¡Gracias, {form.name.split(' ')[0]}!</h2><p>Recibimos tu pedido <b>{order}</b> y enviamos el comprobante a Astral Brand. Destino de entrega: {isFreeDistrict?'envío gratis en '+form.district:'agencia Shalom más cercana a '+form.district+', '+form.province+' · S/ 12'}. {!isFreeDistrict&&<>Tiempo estimado: <b>2–4 días hábiles</b>. </>}Correo del pedido: <b>{form.email}</b>.</p>{!isFreeDistrict&&<a className="shalom-link" href="https://shalom.com.pe/agencias" target="_blank" rel="noreferrer">Consultar agencias Shalom ↗</a>}<a className="btn full" href={support} target="_blank" rel="noreferrer">¿Necesitas ayuda? WhatsApp　↗</a><button className="back" onClick={closeCart}>Seguir explorando</button></div>}
       {error&&<p className="form-error" role="alert">{error}</p>}
       {stage!=='done'&&<a className="support-link" href={support} target="_blank" rel="noreferrer">¿Problemas con tu compra? Escríbenos por WhatsApp ↗</a>}
     </aside></div>}
