@@ -13,7 +13,7 @@ El pedido se completa cuando la API envía por correo el comprobante adjunto. La
 
 ## Envíos y promoción
 
-San Borja y Miraflores: envío gratis. Otros distritos de Lima: S/ 8. Otras regiones del Perú: S/ 12. Los polos cuestan S/ 65 y la promoción calcula 2 por S/ 120.
+Entrega en agencia Shalom: el checkout permite compartir la ubicación para ordenar las agencias por cercanía o buscarlas por distrito/ciudad. El cliente confirma una sucursal y esta se guarda en el pedido. El directorio se consulta desde la API pública de shalom-api.lat; si el servicio no responde, se puede buscar manualmente en el directorio oficial Shalom. Tarifa: San Borja y Miraflores gratis; resto de Lima S/ 8; otras regiones S/ 12. Los polos cuestan S/ 65 y la promoción calcula 2 por S/ 120.
 
 ## Medios de pago
 
@@ -50,3 +50,9 @@ git push
 ```
 
 Si `git remote add origin` indica que `origin` ya existe, revisa `git remote -v` y usa `git remote set-url origin https://github.com/scplasenciac/astralbrand.git`. Estos comandos no suben `.env` ni `node_modules` gracias a `.gitignore`. Si GitHub ya tiene archivos o commits, sincroniza esa historia antes del primer push para evitar un rechazo por historias diferentes.
+
+## Publicar en GitHub Pages
+
+El workflow `.github/workflows/deploy.yml` compila Vite y publica `dist` al hacer push a `main`. En GitHub, entra a **Settings → Pages** y selecciona **GitHub Actions** como fuente de publicación. Vite usa `/astralbrand/` como ruta base para el sitio del repositorio.
+
+GitHub Pages publica la interfaz estática; no ejecuta `server.mjs`. Por eso el formulario de comprobantes requiere desplegar también la API Node y definir `VITE_ORDER_API_URL` como variable de entorno de build. Hasta conectar esa API, el catálogo se verá, pero los pedidos mostrarán un mensaje para contactar por WhatsApp.

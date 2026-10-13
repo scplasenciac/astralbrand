@@ -9,12 +9,12 @@ const PAYMENT_DETAILS = {
   bank: 'Los datos de cuenta bancaria se publicarán pronto. Si deseas realizar tu pedido ahora, contáctanos por WhatsApp.'
 };
 const items = [
-  ['Pink Floyd', 'The Dark Side', '#ad4937', '✳', '/assets/polopinkfloyd.png'],
-  ['Jimi Hendrix', 'Bold as Love', '#652537', '☼', '/assets/polojimihendrix.png'],
-  ['My Chemical Romance', 'Black Parade', '#3c4939', '♜', '/assets/polomcr.png'],
-  ['Arctic Monkeys', 'AM After Hours', '#f1efe9', '☾', '/assets/poloarcticmonkeys.png'],
-  ['Maroon 5', 'Songs About Jane', '#b6a395', '♫', '/assets/polomaroon5.png'],
-  ['The Strokes', 'The New Abnormal', '#705c53', '✳', '/assets/polothestrokes.png']
+  ['Pink Floyd', 'The Dark Side', '#ad4937', '✳', import.meta.env.BASE_URL+'assets/polopinkfloyd.png'],
+  ['Jimi Hendrix', 'Bold as Love', '#652537', '☼', import.meta.env.BASE_URL+'assets/polojimihendrix.png'],
+  ['My Chemical Romance', 'Black Parade', '#3c4939', '♜', import.meta.env.BASE_URL+'assets/polomcr.png'],
+  ['Arctic Monkeys', 'AM After Hours', '#f1efe9', '☾', import.meta.env.BASE_URL+'assets/poloarcticmonkeys.png'],
+  ['Maroon 5', 'Songs About Jane', '#b6a395', '♫', import.meta.env.BASE_URL+'assets/polomaroon5.png'],
+  ['The Strokes', 'The New Abnormal', '#705c53', '✳', import.meta.env.BASE_URL+'assets/polothestrokes.png']
 ];
 const collections = [{
   id:'genesis', name:'Genesis', number:'01', eyebrow:'COLECCIÓN 01 · LA PRIMERA ÓRBITA',
@@ -32,6 +32,15 @@ function calculateSubtotal(bag) {
     return sum + collectionTotal;
   },0);
 }
+const SHALOM_API = 'https://api.shalom-api.lat/public/agencies/search';
+async function searchAgencies(params) {
+  const query = new URLSearchParams({...params, per_page:'6'});
+  const response = await fetch(SHALOM_API+'?'+query);
+  if (!response.ok) throw new Error('No pudimos consultar las agencias ahora. Intenta nuevamente o búscalas en Shalom.');
+  const result = await response.json();
+  if (!result.success || !Array.isArray(result.data)) throw new Error('El directorio de agencias no está disponible en este momento.');
+  return result.data.filter(a => a.direccion && a.nombre && Number.isFinite(Number(a.latitud)) && Number.isFinite(Number(a.longitud)));
+}
 const peruRegions = ['Amazonas','Áncash','Apurímac','Arequipa','Ayacucho','Cajamarca','Callao','Cusco','Huancavelica','Huánuco','Ica','Junín','La Libertad','Lambayeque','Lima','Loreto','Madre de Dios','Moquegua','Pasco','Piura','Puno','San Martín','Tacna','Tumbes','Ucayali'];
 
 function App() {
@@ -40,7 +49,10 @@ function App() {
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState('cart');
   const [pay, setPay] = useState('digital');
-  const [form, setForm] = useState({name:'', email:'', region:'Lima', district:'', address:'', reference:''});
+  const [form, setForm] = useState({name:'', email:'', region:'Lima', district:'', agency:null});
+  const [agencies, setAgencies] = useState([]);
+  const [findingAgencies, setFindingAgencies] = useState(false);
+  const [locationUsed, setLocationUsed] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [sending, setSending] = useState(false);
   const [order, setOrder] = useState('');
@@ -57,9 +69,34 @@ function App() {
   }
   function remove(id) { setBag(current => current.filter(item => item.id !== id)); }
   function closeCart() { setOpen(false); setStage('cart'); setError(''); }
+  async function findNearbyAgencies() {
+    setError(''); setFindingAgencies(true);
+    try {
+      const position = await new Promise((resolve,reject)=>navigator.geolocation
+        ? navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:false,timeout:12000,maximumAge:300000})
+        : reject(new Error('Este navegador no permite compartir ubicación.')));
+      const {latitude,longitude}=position.coords;
+      const found=await searchAgencies({near:latitude+','+longitude});
+      setAgencies(found); setLocationUsed(true);
+      const locatedRegion=found[0]&&peruRegions.find(region=>region.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')===String(found[0].departamento||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''));
+      setForm(current=>({...current,agency:null,region:locatedRegion||current.region}));
+      if (!found.length) setError('No encontramos agencias cercanas. Busca por tu distrito.');
+    } catch(err) { setError(err.code===1?'Permite el acceso a tu ubicación o busca por departamento, provincia o distrito.':err.message||'No pudimos encontrar agencias. Busca por tu distrito.'); }
+    finally { setFindingAgencies(false); }
+  }
+  async function findAgenciesByArea() {
+    if (!form.district.trim()) { setError('Escribe tu distrito para buscar agencias cercanas.'); return; }
+    setError(''); setFindingAgencies(true);
+    try {
+      const found=await searchAgencies({departamento:form.region.toUpperCase(),q:form.district});
+      setAgencies(found); setLocationUsed(false); setForm(current=>({...current,agency:null}));
+      if (!found.length) setError('No encontramos agencias para esa zona. Prueba con otro distrito o ciudad.');
+    } catch(err) { setError(err.message||'No pudimos consultar las agencias. Intenta nuevamente.'); }
+    finally { setFindingAgencies(false); }
+  }
   function validAddress() {
-    if (!form.name.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email) || !form.district.trim() || !form.address.trim()) {
-      setError('Completa el correo electrónico, tu nombre, distrito y dirección de entrega. Revisa que el correo tenga un formato válido.'); return false;
+    if (!form.name.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email) || (!form.district.trim() && !locationUsed) || !form.agency) {
+      setError('Completa tu correo, nombre, ubicación y selecciona una agencia Shalom. Revisa que el correo tenga un formato válido.'); return false;
     }
     setError(''); return true;
   }
@@ -72,11 +109,13 @@ function App() {
       data.append('receipt', receipt);
       data.append('order', JSON.stringify({
         customer:form.name, email:form.email, region:form.region, district:form.district,
-        address:form.address, reference:form.reference, payment:pay === 'digital' ? 'Yape / Plin' : 'Depósito en cuenta',
+        deliveryMethod:'Recojo en agencia Shalom', agency:{id:form.agency.ter_id,name:form.agency.nombre,address:form.agency.direccion,district:form.agency.zona,phone:form.agency.telefono}, payment:pay === 'digital' ? 'Yape / Plin' : 'Depósito en cuenta',
         items:bag.map(item => ({name:item.product[1], artist:item.product[0], collection:item.collectionName, size:item.size, price:item.price})),
         subtotal, shipping, total
       }));
-      const response = await fetch('/api/orders', {method:'POST', body:data});
+      const orderApi = import.meta.env.VITE_ORDER_API_URL;
+      if (import.meta.env.PROD && !orderApi) throw new Error('La tienda está publicada, pero el servidor para recibir pedidos aún no está conectado. Escríbenos por WhatsApp para completar tu compra.');
+      const response = await fetch(orderApi || '/api/orders', {method:'POST', body:data});
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'No pudimos enviar tu comprobante. Intenta nuevamente.');
       setOrder(result.orderId); setStage('done');
@@ -87,7 +126,7 @@ function App() {
 
   return <>
     <div className="top">COLECCIONES DE MÚSICA · POLOS OVERSIZE · ENVÍOS A TODO EL PERÚ</div>
-    <header><a className="logo" href="#"><img className="brand-logo-image" src="/assets/logomarca.jpg" alt="Astral Brand Clothing"/></a><nav><a href="#colecciones">Colecciones</a><a href="#calidad">Nuestro proceso</a><a href="#tallas">Guía de tallas</a></nav><button onClick={()=>{setStage('cart');setOpen(true)}}>♧ Bolsa ({bag.length})</button></header>
+    <header><a className="logo" href="#"><img className="brand-logo-image" src={import.meta.env.BASE_URL+'assets/logomarca.jpg'} alt="Astral Brand Clothing"/></a><nav><a href="#colecciones">Colecciones</a><a href="#calidad">Nuestro proceso</a><a href="#tallas">Guía de tallas</a></nav><button onClick={()=>{setStage('cart');setOpen(true)}}>♧ Bolsa ({bag.length})</button></header>
     <main>
       <section className="hero"><div><p className="eyebrow">{collections[0].name.toUpperCase()} · LIMA, PERÚ</p><h1>Tu música.<br/><i>Tu universo.</i></h1><p>Clásicos que escuchas, historias que vistes. Diseños oversize inspirados en leyendas de la música, reinterpretados a nuestra manera.</p><a className="btn" href="#colecciones">Descubre las colecciones　→</a>{collections[0].offer&&<div className="launch">✳　 {collections[0].offer.label.toUpperCase()}<br/>　　 {collections[0].offer.quantity} polos por S/ {collections[0].offer.total}</div>}</div><div className="heroart"><div className="orbit"></div><img className="hero-product-photo" src={collections[0].products[0][4]} alt={'Polo '+collections[0].products[0][0]+', colección '+collections[0].name}/><label>{collections[0].name.toUpperCase()}<br/>{collections[0].number} / {String(collections[0].products.length).padStart(2,'0')}</label></div></section>
       <div id="colecciones">{collections.map(collection=><section key={collection.id} id={collection.id} className="collection"><div className="heading"><div><p className="eyebrow">{collection.eyebrow}</p><h2>{collection.name} <i>Collection</i></h2></div><p>{collection.description}</p></div>{collection.offer&&<div className="promo">✳　 <span><b>{collection.offer.label}</b><small>Elige {collection.offer.quantity} diseños de {collection.name} y llévatelos por S/ {collection.offer.total}.</small></span><b className="price">S/ {collection.offer.total}</b></div>}<div className="grid">{collection.products.map((product,i)=><article key={collection.id+'-'+product[1]}><div className="product-art" style={{'--shirt':product[2]}}><small>{collection.name.toUpperCase()} · 0{i+1}</small><img className="product-photo" src={product[4]} alt={'Polo '+product[0]+' — '+product[1]} loading="lazy"/><button className="plus" onClick={()=>buy(product,collection)}>＋</button></div><div className="meta"><span><small>{product[0].toUpperCase()}</small><b>{product[1]}</b></span><strong>S/ {collection.price}</strong></div><p className="sizes">TALLA {['S','M','L'].map(size=><button key={size} className={(sizes[product[1]]||'M')===size?'chosen':''} onClick={()=>setSizes({...sizes,[product[1]]:size})}>{size}</button>)}<button className="add" onClick={()=>buy(product,collection)}>Añadir　↗</button></p></article>)}</div></section>)}</div>
@@ -95,11 +134,11 @@ function App() {
       <section id="tallas" className="size"><div><p className="eyebrow">ENCUENTRA TU CALCE</p><h2>Tu talla,<br/><i>tu manera.</i></h2><p>Medidas aproximadas de la prenda en plano. Si estás entre dos tallas, elige según qué tan suelto prefieres llevarlo.</p><a href={support} target="_blank" rel="noreferrer">¿Dudas con tu talla? Escríbenos ↗</a></div><div className="table"><div><span>MEDIDAS (CM)</span><b>S</b><b>M</b><b>L</b></div><div><span>Ancho de pecho</span><b>54</b><b>56</b><b>58</b></div><div><span>Largo total</span><b>69.5</b><b>71</b><b>74</b></div><div><span>Largo de manga</span><b>21</b><b>22</b><b>24</b></div><small>Medidas tomadas de lado a lado. Puede variar ± 1–2 cm.</small></div></section>
       <section className="close"><div><p className="eyebrow">TU PRÓXIMA PRENDA FAVORITA</p><h2>Encuentra tu señal. <i>Vístela.</i></h2></div><a className="btn" href="#genesis">Comprar Genesis　↗</a></section>
     </main>
-    <footer><a className="logo" href="#"><img className="brand-logo-image" src="/assets/logomarca.jpg" alt="Astral Brand Clothing"/></a><span>ENCUENTRA TU FRECUENCIA.</span><a href="https://www.instagram.com/astralbrandclothing/" target="_blank" rel="noreferrer">Instagram ↗</a><a href={support} target="_blank" rel="noreferrer">Soporte WhatsApp ↗</a><small>© 2026 ASTRAL BRAND · LIMA, PERÚ</small></footer>
+    <footer><a className="logo" href="#"><img className="brand-logo-image" src={import.meta.env.BASE_URL+'assets/logomarca.jpg'} alt="Astral Brand Clothing"/></a><span>ENCUENTRA TU FRECUENCIA.</span><a href="https://www.instagram.com/astralbrandclothing/" target="_blank" rel="noreferrer">Instagram ↗</a><a href={support} target="_blank" rel="noreferrer">Soporte WhatsApp ↗</a><small>© 2026 ASTRAL BRAND · LIMA, PERÚ</small></footer>
     {open&&<div className="shade" onClick={event=>event.target===event.currentTarget&&closeCart()}><aside><button className="closex" onClick={closeCart}>×</button>
       {stage==='cart'&&<><p className="eyebrow">TU SELECCIÓN</p><h2>Bolsa ({bag.length})</h2>{!bag.length?<p>Tu bolsa está en órbita.<br/>Elige un diseño para empezar.</p>:<>{bag.map(item=><div className="item" key={item.id}><span>{item.collectionName} · {item.product[1]} · talla {item.size} · S/ {item.price}</span><button onClick={()=>remove(item.id)}>×</button></div>)}<p className="discount">Los precios y promociones se calculan por colección.</p><div className="total">Subtotal <b>S/ {subtotal}</b></div><button className="btn full" onClick={()=>{setStage('address');setError('')}}>Continuar al pago　→</button></>}{bag.length===0&&<button className="btn" onClick={closeCart}>Ver colección</button>}</>}
-      {stage==='address'&&<><p className="eyebrow">PASO 1 DE 3 · ENTREGA</p><h2>¿Dónde lo llevamos?</h2><div className="fields"><label className="email-field">Correo electrónico · aquí recibirás la confirmación<input type="email" value={form.email} onChange={e=>update('email',e.target.value)} autoComplete="email" placeholder="ejemplo@correo.com" required/></label><label>Nombre completo<input value={form.name} onChange={e=>update('name',e.target.value)} autoComplete="name" placeholder="Tu nombre" required/></label><label>Departamento / región<select value={form.region} onChange={e=>update('region',e.target.value)}>{peruRegions.map(region=><option key={region}>{region}</option>)}</select></label><label>Distrito<input value={form.district} onChange={e=>update('district',e.target.value)} placeholder="Ej. Miraflores" required/></label><label className="wide">Dirección de entrega<input value={form.address} onChange={e=>update('address',e.target.value)} autoComplete="street-address" required/></label><label className="wide">Referencia (opcional)<input value={form.reference} onChange={e=>update('reference',e.target.value)} placeholder="Piso, referencia cercana…"/></label></div><div className="shipping">Envío <b>{shipping===0?'GRATIS':'S/ '+shipping}</b><small>{shipping===0?'Entrega gratuita en San Borja y Miraflores':form.region==='Lima'?'Lima Metropolitana':'Provincias del Perú'}</small></div><div className="total">Total <b>S/ {total}</b></div><button className="btn full" onClick={()=>{if(validAddress())setStage('payment')}}>Continuar　→</button><button className="back" onClick={()=>setStage('cart')}>← Volver a la bolsa</button></>}
-      {stage==='payment'&&<><p className="eyebrow">PASO 2 DE 3 · MEDIO DE PAGO</p><h2>Elige cómo pagar</h2><p className="form-intro">Hola {form.name.split(' ')[0]}, tu pedido suma S/ {total}. Realiza el pago y luego adjunta el comprobante.</p><label className={'pay-choice '+(pay==='digital'?'active':'')}><input type="radio" name="pay" checked={pay==='digital'} onChange={()=>setPay('digital')}/><span><b>Yape o Plin</b><small>{PAYMENT_DETAILS.digital}</small></span></label><label className={'pay-choice '+(pay==='bank'?'active':'')}><input type="radio" name="pay" checked={pay==='bank'} onChange={()=>setPay('bank')}/><span><b>Depósito en cuenta</b><small>{PAYMENT_DETAILS.bank}</small></span></label><div className="checkout-total"><span>Polos</span><b>S/ {subtotal}</b><span>Envío</span><b>{shipping===0?'Gratis':'S/ '+shipping}</b><strong>Total a pagar</strong><strong>S/ {total}</strong></div><button className="btn full" onClick={()=>setStage('receipt')}>Ya pagué · Adjuntar comprobante　→</button><button className="back" onClick={()=>setStage('address')}>← Cambiar dirección</button></>}
+      {stage==='address'&&<><p className="eyebrow">PASO 1 DE 3 · ENTREGA</p><h2>¿Dónde lo llevamos?</h2><div className="fields"><label className="email-field">Correo electrónico · aquí recibirás la confirmación<input type="email" value={form.email} onChange={e=>update('email',e.target.value)} autoComplete="email" placeholder="ejemplo@correo.com" required/></label><label>Nombre completo<input value={form.name} onChange={e=>update('name',e.target.value)} autoComplete="name" placeholder="Tu nombre" required/></label><label>Departamento / región<select value={form.region} onChange={e=>update('region',e.target.value)}>{peruRegions.map(region=><option key={region}>{region}</option>)}</select></label><div className="wide agency-finder"><p className="finder-title">Recojo en agencia Shalom</p><p className="finder-copy">Comparte tu ubicación para ordenar las agencias por cercanía. También puedes buscar por distrito o ciudad. Tu ubicación precisa solo se usa para encontrar sucursales cercanas.</p><button type="button" className="location-button" onClick={findNearbyAgencies} disabled={findingAgencies}>{findingAgencies?'Buscando agencias…':'⌖　Usar mi ubicación actual'}</button><p className="finder-label">O busca por tu distrito o ciudad</p><div className="agency-search"><input value={form.district} onChange={e=>{update('district',e.target.value);setForm(current=>({...current,agency:null}))}} placeholder="Ej. Miraflores, Lima"/><button type="button" onClick={findAgenciesByArea} disabled={findingAgencies}>Buscar</button></div>{agencies.length>0&&<div className="agency-results" role="radiogroup" aria-label="Agencias Shalom cercanas">{agencies.map((agency,index)=><button type="button" key={agency.ter_id} className={form.agency?.ter_id===agency.ter_id?'agency-card selected':'agency-card'} onClick={()=>{setForm(current=>({...current,agency}));setError('')}}><span className="agency-dot">{form.agency?.ter_id===agency.ter_id?'✓':index+1}</span><span><b>{agency.lugar_over||agency.nombre.split('/').pop()}</b><small>{agency.direccion}</small><small>{agency.distancia_km?Number(agency.distancia_km).toFixed(1)+' km de tu ubicación · ':''}{agency.zona||agency.provincia}</small></span></button>)}</div>}{form.agency&&<p className="selected-note">✓ Agencia seleccionada: <b>{form.agency.lugar_over||form.agency.nombre}</b></p>}<a className="shalom-link" href="https://shalom.com.pe/agencias" target="_blank" rel="noreferrer">Ver directorio oficial de Shalom ↗</a></div></div><div className="shipping">Envío <b>{shipping===0?'GRATIS':'S/ '+shipping}</b><small>{shipping===0?'Entrega gratuita en San Borja y Miraflores':form.region==='Lima'?'Recojo en agencia · Lima Metropolitana':'Recojo en agencia · Provincias del Perú'}</small></div><div className="total">Total <b>S/ {total}</b></div><button className="btn full" onClick={()=>{if(validAddress())setStage('payment')}}>Continuar　→</button><button className="back" onClick={()=>setStage('cart')}>← Volver a la bolsa</button></>}
+      {stage==='payment'&&<><p className="eyebrow">PASO 2 DE 3 · MEDIO DE PAGO</p><h2>Elige cómo pagar</h2><p className="form-intro">Hola {form.name.split(' ')[0]}, tu pedido suma S/ {total}. Realiza el pago y luego adjunta el comprobante.</p><div className="chosen-agency-summary"><b>Recojo en Shalom</b><span>{form.agency?.lugar_over||form.agency?.nombre}</span><small>{form.agency?.direccion}</small></div><label className={'pay-choice '+(pay==='digital'?'active':'')}><input type="radio" name="pay" checked={pay==='digital'} onChange={()=>setPay('digital')}/><span><b>Yape o Plin</b><small>{PAYMENT_DETAILS.digital}</small></span></label><label className={'pay-choice '+(pay==='bank'?'active':'')}><input type="radio" name="pay" checked={pay==='bank'} onChange={()=>setPay('bank')}/><span><b>Depósito en cuenta</b><small>{PAYMENT_DETAILS.bank}</small></span></label><div className="checkout-total"><span>Polos</span><b>S/ {subtotal}</b><span>Envío</span><b>{shipping===0?'Gratis':'S/ '+shipping}</b><strong>Total a pagar</strong><strong>S/ {total}</strong></div><button className="btn full" onClick={()=>setStage('receipt')}>Ya pagué · Adjuntar comprobante　→</button><button className="back" onClick={()=>setStage('address')}>← Cambiar agencia</button></>}
       {stage==='receipt'&&<><p className="eyebrow">PASO 3 DE 3 · COMPROBANTE</p><h2>Confirma tu pago</h2><p className="form-intro">Adjunta el comprobante de {pay==='digital'?'Yape / Plin':'depósito en cuenta'}. Lo enviaremos a <b>{STORE_EMAIL}</b>.</p><form onSubmit={submitOrder}><label className="upload">{receipt?<><b>✓ {receipt.name}</b><small>Archivo listo para enviar · toca para cambiarlo</small></>:<>＋ Adjuntar comprobante<small>Imagen o PDF · máximo 8 MB</small></>}<input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" onChange={e=>setReceipt(e.target.files?.[0]||null)} required/></label><div className="checkout-total"><span>Correo del pedido</span><b>{form.email}</b><strong>Total pagado</strong><strong>S/ {total}</strong></div><button className="btn full" disabled={sending||!receipt}>{sending?'Enviando comprobante…':'Enviar comprobante y confirmar　✓'}</button></form><button className="back" onClick={()=>setStage('payment')}>← Volver a medios de pago</button></>}
       {stage==='done'&&<div className="success"><span>✓</span><p className="eyebrow">PEDIDO CONFIRMADO</p><h2>¡Gracias, {form.name.split(' ')[0]}!</h2><p>Recibimos tu pedido <b>{order}</b> y enviamos el comprobante a Astral Brand. Te contactaremos a <b>{form.email}</b> para coordinar la entrega.</p><a className="btn full" href={support} target="_blank" rel="noreferrer">¿Necesitas ayuda? WhatsApp　↗</a><button className="back" onClick={closeCart}>Seguir explorando</button></div>}
       {error&&<p className="form-error" role="alert">{error}</p>}
