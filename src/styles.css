@@ -10,3 +10,69 @@
 .chosen-agency-summary{display:grid;gap:6px;background:#ebe9e1;padding:12px;margin:12px 0;font-size:9px}.chosen-agency-summary b{font-size:10px}.chosen-agency-summary small{line-height:1.5;color:#707168}
 
 .delivery-note{grid-column:1/-1;display:grid;gap:8px;padding:13px;background:#ebe9e1;color:#292b25;font-size:10px;line-height:1.55}.delivery-note b{font-size:10px}.delivery-note small{font-size:9px;color:#686960}.delivery-note a{font-size:9px;text-decoration:underline}
+
+/* Tipografía y acciones de compra con mejor legibilidad */
+.top{font-size:11px;min-height:34px;height:auto;padding:10px 8px;letter-spacing:1.2px}
+nav a,header>button{font-size:13px}
+.eyebrow{font-size:11px;letter-spacing:1.7px}
+.hero>div:first-child>p:not(.eyebrow),.craft>div>p:not(.eyebrow),.size>div:first-child>p:not(.eyebrow){font-size:14px;line-height:1.8}
+.hero .btn,.close .btn{font-size:13px}
+.launch{font-size:12px}
+.heading>p{font-size:14px;line-height:1.7}
+.promo span b{font-size:13px}.promo span small{font-size:11px}
+.meta small{font-size:10px}.meta b{font-size:16px}.meta strong{font-size:14px}
+.sizes{font-size:11px}.sizes button:not(.add){font-size:12px;width:28px;height:28px}
+.product-actions{display:grid;gap:8px;margin-top:11px}
+.product-actions button{width:100%;min-height:42px;padding:11px 12px;font-size:13px}
+.product-actions .buy-now{background:#272923;color:#fff}
+.product-actions .buy-now:hover{background:#bf6a4a}
+.product-actions .add-to-cart{border:1px solid #bdbbb2;background:transparent}
+.product-actions .add-to-cart:hover{background:#e9e7df}
+.points{font-size:12px}.size a,footer>a:not(.logo){font-size:12px}
+.table>div{font-size:12px}.table>div:first-child{font-size:10px}
+footer>span,footer>small{font-size:10px}
+aside>p,.fields label{font-size:11px}.fields input,.fields select{font-size:13px;padding:12px}
+.pay-choice b{font-size:13px}.pay-choice small,.checkout-total,.upload,.support-link{font-size:11px}
+.back{font-size:12px}.shipping{font-size:12px}.shipping small{font-size:10px}
+@media(max-width:700px){nav{gap:11px}nav a,header>button{font-size:11px}.product-actions button{font-size:13px}.meta b{font-size:14px}.meta strong{font-size:13px}.top{font-size:9px}}
+
+/* Texto informativo más legible; mantener la escala de los títulos */
+.hero>div:first-child>p:not(.eyebrow),.craft>div>p:not(.eyebrow),.size>div:first-child>p:not(.eyebrow){font-size:16px;line-height:1.8}
+.heading>p{font-size:16px;line-height:1.75}
+.eyebrow{font-size:12px}.launch{font-size:14px}
+.product-art>small{font-size:11px}.meta small{font-size:12px}.meta b{font-size:16px}.meta strong{font-size:15px}
+.sizes{font-size:13px}.sizes button:not(.add){font-size:13px}
+.promo span small{font-size:13px}.promo span b{font-size:14px}
+.points{font-size:14px;line-height:2.2}.table>div{font-size:14px}.table>div:first-child{font-size:11px}.table small{font-size:11px}
+.delivery-note small,.shipping small,.chosen-agency-summary small{font-size:12px;line-height:1.6}
+.fields label,.form-intro,.checkout-total,.pay-choice small,.support-link,.upload{font-size:13px}
+.fields input,.fields select{font-size:14px}.pay-choice b{font-size:14px}.back{font-size:13px}
+.product-art{position:relative}
+.image-trigger{position:absolute;inset:0;z-index:2;width:100%;height:100%;padding:0;border:0;background:transparent;cursor:pointer}
+.product-art .product-actions{position:absolute;z-index:3;left:12px;right:12px;bottom:12px;display:grid;gap:8px;margin:0;opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .2s ease,transform .2s ease}
+.product-art .product-actions button{min-height:44px;padding:11px 12px;font-size:14px;box-shadow:0 2px 12px #0002}
+.product-art .product-actions .buy-now{background:#272923;color:#fff}
+.product-art .product-actions .add-to-cart{background:#f8f7f3ed;border:1px solid #c5c2b7;color:#272923}
+@media (hover:hover){.product-art:hover .product-actions,.product-card:hover .product-art .product-actions{opacity:1;transform:translateY(0);pointer-events:auto}.product-art .image-trigger{pointer-events:none}}
+@media (hover:none){.actions-visible .product-art .product-actions{opacity:1;transform:translateY(0);pointer-events:auto}}
+@media(max-width:700px){.hero>div:first-child>p:not(.eyebrow),.craft>div>p:not(.eyebrow),.size>div:first-child>p:not(.eyebrow){font-size:15px}.heading>p{font-size:15px}.meta small{font-size:11px}.meta b{font-size:14px}.table>div{font-size:13px}.delivery-note small,.shipping small,.chosen-agency-summary small{font-size:11px}.fields label,.form-intro,.checkout-total,.pay-choice small,.support-link,.upload{font-size:12px}.product-art .product-actions{left:7px;right:7px;bottom:7px;gap:6px}.product-art .product-actions button{min-height:40px;padding:9px 6px;font-size:12px}}
+
+/* Promo única del hero, destacada */
+.launch{display:grid;gap:7px;width:min(100%,330px);margin-top:28px;padding:17px 19px;background:#292b25;color:#f7f3e9;border-left:4px solid #cf7958;box-shadow:0 10px 24px #27292318}
+.launch span{font-size:10px;letter-spacing:1.4px;color:#e6a27f;font-weight:700}
+.launch strong{font-size:20px;line-height:1.15;letter-spacing:-.4px;color:#fff}
+.launch small{font-size:12px;color:#d2d0c6}
+/* Carrusel del hero: mantiene el área y márgenes constantes */
+.hero-product-photo{animation:heroProductFade .45s ease both}
+@keyframes heroProductFade{from{opacity:.45;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.heroart label{width:auto;min-width:86px;height:auto;min-height:56px;padding:10px 12px;border-radius:999px;line-height:1.5;font-size:9px}
+/* Tallas y compra aparecen dentro de la foto */
+.product-art .product-actions{visibility:hidden}
+.product-art .size-picker{display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 10px;background:#f8f7f3ed;color:#272923}
+.product-art .size-picker span{margin-right:auto;font-size:10px;font-weight:700;letter-spacing:.8px}
+.product-art .size-picker button{width:32px;height:32px;border:1px solid #bbb8ae;background:transparent;font-size:12px;font-weight:600}
+.product-art .size-picker button.chosen{background:#272923;border-color:#272923;color:#fff}
+.product-art .product-actions button:disabled{opacity:.48;cursor:not-allowed;box-shadow:none}
+@media (hover:hover){.product-art:hover .product-actions,.product-art:focus-within .product-actions{visibility:visible}}
+@media (hover:none){.actions-visible .product-art .product-actions{visibility:visible}.product-art .image-trigger:focus-visible{outline:2px solid #bf7152;outline-offset:-4px}}
+@media(max-width:700px){.launch{width:min(100%,320px);padding:15px 16px}.launch strong{font-size:18px}.launch small{font-size:11px}.product-art .size-picker{gap:5px;padding:8px}.product-art .size-picker span{font-size:9px}.product-art .size-picker button{width:29px;height:29px}}

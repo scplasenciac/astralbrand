@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -38,6 +38,8 @@ const peruRegions = ['Amazonas','Áncash','Apurímac','Arequipa','Ayacucho','Caj
 function App() {
   const [bag, setBag] = useState([]);
   const [sizes, setSizes] = useState({});
+  const [activeProduct, setActiveProduct] = useState(null);
+  const [heroProductIndex, setHeroProductIndex] = useState(0);
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState('cart');
   const [pay, setPay] = useState('digital');
@@ -47,6 +49,11 @@ function App() {
   const [order, setOrder] = useState('');
   const [error, setError] = useState('');
   const subtotal = useMemo(() => calculateSubtotal(bag), [bag]);
+  const heroProduct = collections[0].products[heroProductIndex];
+  useEffect(() => {
+    const timer = setInterval(() => setHeroProductIndex(index => (index + 1) % collections[0].products.length), 5000);
+    return () => clearInterval(timer);
+  }, []);
   const normalize = value => value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const isFreeDistrict = form.region === 'Lima' && ['san borja','miraflores'].includes(normalize(form.district));
   const shipping = !form.district.trim() || isFreeDistrict ? 0 : 12;
@@ -54,8 +61,12 @@ function App() {
   const update = (key, value) => setForm(current => ({...current, [key]: value}));
 
   function buy(product, collection) {
-    setBag(current => [...current, {product, collectionId:collection.id, collectionName:collection.name, price:collection.price, size:sizes[product[1]] || 'M', id:Date.now()+Math.random()}]);
+    setBag(current => [...current, {product, collectionId:collection.id, collectionName:collection.name, price:collection.price, size:sizes[product[1]], id:Date.now()+Math.random()}]);
     setStage('cart'); setOpen(true);
+  }
+  function buyNow(product, collection) {
+    setBag(current => [...current, {product, collectionId:collection.id, collectionName:collection.name, price:collection.price, size:sizes[product[1]] || 'M', id:Date.now()+Math.random()}]);
+    setStage('address'); setError(''); setOpen(true);
   }
   function remove(id) { setBag(current => current.filter(item => item.id !== id)); }
   function closeCart() { setOpen(false); setStage('cart'); setError(''); }
@@ -93,8 +104,8 @@ function App() {
     <div className="top">COLECCIONES DE MÚSICA · POLOS OVERSIZE · ENVÍOS A TODO EL PERÚ</div>
     <header><a className="logo" href="#"><img className="brand-logo-image" src={import.meta.env.BASE_URL+'assets/logomarca.jpg'} alt="Astral Brand Clothing"/></a><nav><a href="#colecciones">Colecciones</a><a href="#calidad">Nuestro proceso</a><a href="#tallas">Guía de tallas</a></nav><button onClick={()=>{setStage('cart');setOpen(true)}}>♧ Bolsa ({bag.length})</button></header>
     <main>
-      <section className="hero"><div><p className="eyebrow">{collections[0].name.toUpperCase()} · LIMA, PERÚ</p><h1>Tu música.<br/><i>Tu universo.</i></h1><p>Clásicos que escuchas, historias que vistes. Diseños oversize inspirados en leyendas de la música, reinterpretados a nuestra manera.</p><a className="btn" href="#colecciones">Descubre las colecciones　→</a>{collections[0].offer&&<div className="launch">✳　 {collections[0].offer.label.toUpperCase()}<br/>　　 {collections[0].offer.quantity} polos por S/ {collections[0].offer.total}</div>}</div><div className="heroart"><div className="orbit"></div><img className="hero-product-photo" src={collections[0].products[0][4]} alt={'Polo '+collections[0].products[0][0]+', colección '+collections[0].name}/><label>{collections[0].name.toUpperCase()}<br/>{collections[0].number} / {String(collections[0].products.length).padStart(2,'0')}</label></div></section>
-      <div id="colecciones">{collections.map(collection=><section key={collection.id} id={collection.id} className="collection"><div className="heading"><div><p className="eyebrow">{collection.eyebrow}</p><h2>{collection.name} <i>Collection</i></h2></div><p>{collection.description}</p></div>{collection.offer&&<div className="promo">✳　 <span><b>{collection.offer.label}</b><small>Elige {collection.offer.quantity} diseños de {collection.name} y llévatelos por S/ {collection.offer.total}.</small></span><b className="price">S/ {collection.offer.total}</b></div>}<div className="grid">{collection.products.map((product,i)=><article key={collection.id+'-'+product[1]}><div className="product-art" style={{'--shirt':product[2]}}><small>{collection.name.toUpperCase()} · 0{i+1}</small><img className="product-photo" src={product[4]} alt={'Polo '+product[0]+' — '+product[1]} loading="lazy"/><button className="plus" onClick={()=>buy(product,collection)}>＋</button></div><div className="meta"><span><small>{product[0].toUpperCase()}</small><b>{product[1]}</b></span><strong>S/ {collection.price}</strong></div><p className="sizes">TALLA {['S','M','L'].map(size=><button key={size} className={(sizes[product[1]]||'M')===size?'chosen':''} onClick={()=>setSizes({...sizes,[product[1]]:size})}>{size}</button>)}<button className="add" onClick={()=>buy(product,collection)}>Añadir　↗</button></p></article>)}</div></section>)}</div>
+      <section className="hero"><div><p className="eyebrow">{collections[0].name.toUpperCase()} · LIMA, PERÚ</p><h1>Tu música.<br/><i>Tu universo.</i></h1><p>Clásicos que escuchas, historias que vistes. Diseños oversize inspirados en leyendas de la música, reinterpretados a nuestra manera.</p><a className="btn" href="#colecciones">Descubre las colecciones　→</a>{collections[0].offer&&<div className="launch"><span>✳　{collections[0].offer.label.toUpperCase()}</span><strong>{collections[0].offer.quantity} polos por S/ {collections[0].offer.total}</strong><small>Combina tus diseños favoritos de Genesis.</small></div>}</div><div className="heroart"><div className="orbit"></div><img key={heroProduct[1]} className="hero-product-photo" src={heroProduct[4]} alt={'Polo '+heroProduct[0]+' — '+heroProduct[1]+', colección '+collections[0].name}/><label>{heroProduct[0].toUpperCase()}<br/>{String(heroProductIndex+1).padStart(2,'0')} / {String(collections[0].products.length).padStart(2,'0')}</label></div></section>
+      <div id="colecciones">{collections.map(collection=><section key={collection.id} id={collection.id} className="collection"><div className="heading"><div><p className="eyebrow">{collection.eyebrow}</p><h2>{collection.name} <i>Collection</i></h2></div><p>{collection.description}</p></div><div className="grid">{collection.products.map((product,i)=><article key={collection.id+'-'+product[1]} className={activeProduct===collection.id+'-'+product[1]?'actions-visible':''}><div className="product-art" style={{'--shirt':product[2]}}><small>{collection.name.toUpperCase()} · 0{i+1}</small><img className="product-photo" src={product[4]} alt={'Polo '+product[0]+' — '+product[1]} loading="lazy"/><button type="button" className="image-trigger" aria-label={'Mostrar tallas y opciones de compra para '+product[1]} onClick={()=>setActiveProduct(activeProduct===collection.id+'-'+product[1]?null:collection.id+'-'+product[1])}/><div className="product-actions"><div className="size-picker"><span>ELIGE TU TALLA</span>{['S','M','L'].map(size=><button type="button" key={size} className={sizes[product[1]]===size?'chosen':''} aria-pressed={sizes[product[1]]===size} onClick={()=>setSizes(current=>({...current,[product[1]]:size}))}>{size}</button>)}</div><button className="buy-now" disabled={!sizes[product[1]]} onClick={()=>buyNow(product,collection)}>Lo quiero　↗</button><button className="add-to-cart" disabled={!sizes[product[1]]} onClick={()=>buy(product,collection)}>Agregar al carrito</button></div></div><div className="meta"><span><small>{product[0].toUpperCase()}</small><b>{product[1]}</b></span><strong>S/ {collection.price}</strong></div></article>)}</div></section>)}</div>
       <section id="calidad" className="craft"><div className="record">✳<small>ASTRAL<br/>SOUND SYSTEM</small></div><div><p className="eyebrow">DETALLE QUE IMPORTA</p><h2>El diseño se ve.<br/><i>La tinta casi no.</i></h2><p>Estampados en serigrafía discharge: la tinta se integra con las fibras del algodón para un acabado suave, ligero y respirable. El gráfico acompaña la tela sin esa capa plástica que se siente al tacto.</p><div className="points">01　Tacto suave, sin relieve<br/>02　Color integrado a la fibra<br/>03　Calce oversize · algodón cómodo</div></div></section>
       <section id="tallas" className="size"><div><p className="eyebrow">ENCUENTRA TU CALCE</p><h2>Tu talla,<br/><i>tu manera.</i></h2><p>Medidas aproximadas de la prenda en plano. Si estás entre dos tallas, elige según qué tan suelto prefieres llevarlo.</p><a href={support} target="_blank" rel="noreferrer">¿Dudas con tu talla? Escríbenos ↗</a></div><div className="table"><div><span>MEDIDAS (CM)</span><b>S</b><b>M</b><b>L</b></div><div><span>Ancho de pecho</span><b>54</b><b>56</b><b>58</b></div><div><span>Largo total</span><b>69.5</b><b>71</b><b>74</b></div><div><span>Largo de manga</span><b>21</b><b>22</b><b>24</b></div><small>Medidas tomadas de lado a lado. Puede variar ± 1–2 cm.</small></div></section>
       <section className="close"><div><p className="eyebrow">TU PRÓXIMA PRENDA FAVORITA</p><h2>Encuentra tu señal. <i>Vístela.</i></h2></div><a className="btn" href="#genesis">Comprar Genesis　↗</a></section>
