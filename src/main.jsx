@@ -91,7 +91,7 @@ function App() {
       }));
       const orderApi = import.meta.env.VITE_ORDER_API_URL;
       if (import.meta.env.PROD && !orderApi) throw new Error('La tienda está publicada, pero el servidor para recibir pedidos aún no está conectado. Escríbenos por WhatsApp para completar tu compra.');
-      const response = await fetch(orderApi || '/api/orders', {method:'POST', body:data});
+      const response = await fetch(orderApi || '/api/orders', {method:'POST', body:data, signal:AbortSignal.timeout(120000)});
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'No pudimos enviar tu comprobante. Intenta nuevamente.');
       setOrder(result.orderId); setStage('done');

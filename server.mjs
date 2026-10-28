@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
 import multer from 'multer';
-import nodemailer from 'nodemailer';
 import { randomUUID } from 'node:crypto';
 
 const app = express();
@@ -28,7 +27,7 @@ app.post('/api/orders', upload.single('receipt'), async (req,res) => {
     if (!req.file) return res.status(400).json({error:'Adjunta el comprobante de pago.'});
     const order = JSON.parse(req.body.order || '{}');
     if (!order.customer || !order.email || !order.region || !order.district || !order.items?.length || !Number.isFinite(order.total)) return res.status(400).json({error:'Faltan datos del pedido. Regresa al paso de entrega y completa el formulario.'});
-    const required = ['SMTP_HOST','SMTP_USER','SMTP_PASS'];
+    const required = ['BREVO_API_KEY','EMAIL_FROM'];
     const missing = required.filter(key => !process.env[key]);
     if (missing.length) return res.status(503).json({error:'La tienda aún debe configurar el envío de correos. Contacta a Astral Brand por WhatsApp para completar tu compra.'});
     const orderId = 'AB-' + randomUUID().slice(0,8).toUpperCase();
@@ -75,18 +74,29 @@ app.post('/api/orders', upload.single('receipt'), async (req,res) => {
       '', 'Cualquier duda, comunícate con nosotros por WhatsApp al +51 957 391 382.',
       '', 'Astral Brand'
     ].join(newline);
-    const transporter = nodemailer.createTransport({host:process.env.SMTP_HOST, port:Number(process.env.SMTP_PORT||587), secure:Number(process.env.SMTP_PORT)===465, auth:{user:process.env.SMTP_USER,pass:process.env.SMTP_PASS}});
-    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+    const sender = {name:process.env.EMAIL_FROM_NAME || 'Astral Brand', email:process.env.EMAIL_FROM};
+    const sendEmail = async payload => {
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method:'POST',
+        headers:{accept:'application/json','api-key':process.env.BREVO_API_KEY,'content-type':'application/json'},
+        body:JSON.stringify(payload),
+        signal:AbortSignal.timeout(20000)
+      });
+      if (!response.ok) {
+        const details = await response.text();
+        throw new Error('Brevo API '+response.status+': '+details.slice(0,500));
+      }
+    };
     await Promise.all([
-      transporter.sendMail({
-        from, to:storeEmail, replyTo:order.email,
-        subject:'Nuevo pedido '+orderId+' — Astral Brand', text:message,
-        attachments:[{filename:req.file.originalname,content:req.file.buffer,contentType:req.file.mimetype}]
+      sendEmail({
+        sender, to:[{email:storeEmail}], replyTo:{email:order.email,name:order.customer},
+        subject:'Nuevo pedido '+orderId+' - Astral Brand', textContent:message,
+        attachment:[{name:req.file.originalname,content:req.file.buffer.toString('base64')}]
       }),
-      transporter.sendMail({
-        from, to:order.email,
-        subject:'Tu compra fue realizada con éxito — '+orderId+' | Astral Brand',
-        text:confirmationMessage
+      sendEmail({
+        sender, to:[{email:order.email,name:order.customer}],
+        subject:'Tu compra fue realizada con éxito - '+orderId+' | Astral Brand',
+        textContent:confirmationMessage
       })
     ]);
     res.json({ok:true,orderId});
