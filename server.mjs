@@ -34,6 +34,14 @@ app.post('/api/orders', upload.single('receipt'), async (req,res) => {
     const orderId = 'AB-' + randomUUID().slice(0,8).toUpperCase();
     const newline = String.fromCharCode(10);
     const lines = order.items.map((item,index) => (index+1)+'. '+(item.collection ? item.collection+' · ' : '')+item.name+' — talla '+item.size+' — S/ '+item.price).join(newline);
+    const delivery = [
+      'Entrega: '+(order.deliveryMethod||'Recojo en agencia'),
+      'Zona de entrega: '+order.district+', '+order.region,
+      'Modalidad de entrega: '+(order.deliveryMethod||'Por coordinar'),
+      'Agencia Shalom: '+(order.agency?.name || 'Por coordinar según el distrito'),
+      'Referencia de ubicación: '+(order.agency?.address || order.district+', '+order.region),
+      'Plazo estimado de recepción: '+(order.estimatedDelivery||'2-4 días hábiles')
+    ].join(newline);
     const message = [
       'PEDIDO '+orderId,
       '',
