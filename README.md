@@ -56,3 +56,21 @@ Si `git remote add origin` indica que `origin` ya existe, revisa `git remote -v`
 El workflow `.github/workflows/deploy.yml` compila Vite y publica `dist` al hacer push a `main`. En GitHub, entra a **Settings → Pages** y selecciona **GitHub Actions** como fuente de publicación. Vite usa `/astralbrand/` como ruta base para el sitio del repositorio.
 
 GitHub Pages publica la interfaz estática; no ejecuta `server.mjs`. Por eso el formulario de comprobantes requiere desplegar también la API Node y definir `VITE_ORDER_API_URL` como variable de entorno de build. Hasta conectar esa API, el catálogo se verá, pero los pedidos mostrarán un mensaje para contactar por WhatsApp.
+
+## Desplegar la API en Render
+
+La web estática se publica en GitHub Pages y la API de pedidos se ejecuta como un Web Service independiente en Render. En Render usa `npm ci` como Build Command, `npm start` como Start Command y `/health` como Health Check Path. Deja Root Directory vacío porque este repositorio tiene `package.json` en la raíz.
+
+Configura en Environment Variables de Render:
+
+- `STORE_EMAIL`: `sebastianplasencia313@gmail.com`
+- `SMTP_HOST`: para Gmail, `smtp.gmail.com`
+- `SMTP_PORT`: `465`
+- `SMTP_USER`: el correo remitente de Astral Brand
+- `SMTP_PASS`: contraseña de aplicación de Google; no uses ni compartas la contraseña normal de Gmail
+- `SMTP_FROM`: el mismo correo remitente
+- `FRONTEND_ORIGIN`: `https://scplasenciac.github.io`
+
+Después del primer despliegue, copia la URL pública de Render y en GitHub abre **Settings → Secrets and variables → Actions → Variables**. Crea `VITE_ORDER_API_URL` con el valor `https://TU-SERVICIO.onrender.com/api/orders`. La URL es pública y va como variable del repositorio, no como secreto. El workflow no publica una nueva versión de Pages mientras esta variable esté vacía.
+
+Para desarrollo local, copia `.env.example` como `.env` y configura SMTP allí. Nunca subas `.env` a GitHub. El endpoint `/health` debe responder `{"ok":true}` cuando la API esté disponible.
