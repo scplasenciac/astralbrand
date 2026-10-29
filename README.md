@@ -13,7 +13,7 @@ El pedido solo se confirma cuando la API envía correctamente los dos correos: e
 
 ## Envíos y promoción
 
-En checkout se solicitan departamento/región y distrito. El envío es gratis para San Borja o Miraflores en Lima; para cualquier otro punto cuesta S/ 12 y se despacha a la agencia Shalom más cercana a la zona indicada. El enlace al directorio de agencias está disponible en el checkout y en la confirmación. El plazo estimado es de 2 a 4 días hábiles. Los polos cuestan S/ 65 y la promoción calcula 2 por S/ 120.
+En checkout se solicitan departamento/región, provincia y distrito mediante selectores encadenados con destinos Shalom identificados en directorios públicos. La lista es referencial y la agencia exacta se confirma antes del despacho. El envío es gratis y coordinado directamente para San Borja, Miraflores, Barranco, Surquillo o San Isidro, en Lima; para cualquier otro punto cuesta S/ 10 y se despacha a una agencia Shalom. Al comprar dos polos de una colección con la promo de 2 por S/ 120, el envío por Shalom es gratis. El enlace al directorio de agencias está disponible en el checkout y en la confirmación. El plazo estimado es de 2 a 4 días hábiles. Cada polo cuesta S/ 60; la promoción es 2 por S/ 120.
 
 ## Medios de pago
 

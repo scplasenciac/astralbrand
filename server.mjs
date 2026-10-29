@@ -26,54 +26,69 @@ app.post('/api/orders', upload.single('receipt'), async (req,res) => {
   try {
     if (!req.file) return res.status(400).json({error:'Adjunta el comprobante de pago.'});
     const order = JSON.parse(req.body.order || '{}');
-    if (!order.customer || !order.email || !order.region || !order.district || !order.items?.length || !Number.isFinite(order.total)) return res.status(400).json({error:'Faltan datos del pedido. Regresa al paso de entrega y completa el formulario.'});
+    if (!order.customer || !order.email || !order.region || !order.province || !order.district || !order.items?.length || !Number.isFinite(order.total)) return res.status(400).json({error:'Faltan datos del pedido. Regresa al paso de entrega y completa el formulario.'});
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(order.email).trim())) return res.status(400).json({error:'Ingresa un correo electrónico válido para recibir la confirmación.'});
     const required = ['BREVO_API_KEY','EMAIL_FROM'];
     const missing = required.filter(key => !process.env[key]);
     if (missing.length) return res.status(503).json({error:'La tienda aún debe configurar el envío de correos. Contacta a Astral Brand por WhatsApp para completar tu compra.'});
     const orderId = 'AB-' + randomUUID().slice(0,8).toUpperCase();
     const newline = String.fromCharCode(10);
+    const freeDeliveryDistricts = ['san borja','miraflores','barranco','surquillo','san isidro'];
+    const normalizedDistrict = String(order.district).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const coordinatedLocalDelivery = order.region === 'Lima' && freeDeliveryDistricts.includes(normalizedDistrict);
+    const eligiblePairs = new Map();
+    for (const item of order.items) {
+      if (item.promoEligible) eligiblePairs.set(item.collection || 'Genesis', (eligiblePairs.get(item.collection || 'Genesis') || 0) + 1);
+    }
+    const promoFreeShipping = !coordinatedLocalDelivery && [...eligiblePairs.values()].some(quantity => quantity >= 2);
+    const subtotal = Number(order.subtotal);
+    const shipping = coordinatedLocalDelivery || promoFreeShipping ? 0 : 10;
+    const total = subtotal + shipping;
     const lines = order.items.map((item,index) => (index+1)+'. '+(item.collection ? item.collection+' · ' : '')+item.name+' — talla '+item.size+' — S/ '+item.price).join(newline);
-    const delivery = [
-      'Entrega: '+(order.deliveryMethod||'Recojo en agencia'),
-      'Zona de entrega: '+order.district+', '+order.region,
-      'Modalidad de entrega: '+(order.deliveryMethod||'Por coordinar'),
+    const delivery = coordinatedLocalDelivery ? [
+      'Entrega: Gratis (coordinación directa)',
+      'Zona: '+order.district+', '+order.province+', '+order.region,
+      'Modalidad: Entrega coordinada con el cliente, no se usa Shalom',
+      'Dirección: Se coordinará directamente con el cliente',
+      'Plazo: Se coordinará directamente con el cliente'
+    ].join(newline) : [
+      'Entrega: '+(promoFreeShipping?'Gratis por la promoción 2 polos por S/ 120':'S/ 10'),
+      'Zona: '+order.district+', '+order.province+', '+order.region,
+      'Modalidad: Envío a la agencia Shalom más cercana',
       'Agencia Shalom: '+(order.agency?.name || 'Por coordinar según el distrito'),
-      'Referencia de ubicación: '+(order.agency?.address || order.district+', '+order.region),
-      'Plazo estimado de recepción: '+(order.estimatedDelivery||'2-4 días hábiles')
+      'Referencia de ubicación: '+(order.agency?.address || order.district+', '+order.province+', '+order.region),
+      'Plazo estimado de recepción: 2-4 días hábiles'
     ].join(newline);
     const message = [
       'PEDIDO '+orderId,
       '',
       'Cliente: '+order.customer,
       'Correo: '+order.email,
-      'Entrega: '+(order.deliveryMethod||'Recojo en agencia'),
-      'Zona de entrega: '+order.district+', '+order.region,
-      'Modalidad de entrega: '+order.deliveryMethod,
-      'Agencia Shalom: '+(order.agency?.name || 'Por coordinar según el distrito'),
-      'Referencia de ubicación: '+(order.agency?.address || order.district+', '+order.region),
-      'Plazo estimado de recepción: '+(order.estimatedDelivery||'2–4 días hábiles'),
+      '', delivery, '',
       'Método de pago: '+order.payment,
       '', lines, '',
-      'Subtotal: S/ '+order.subtotal,
-      'Envío: '+(order.shipping===0?'Gratis':'S/ '+order.shipping),
-      'Total: S/ '+order.total,
-      '', 'Comprobante adjunto.'
+      'Subtotal: S/ '+subtotal,
+      'Envío: '+(shipping===0?'Gratis':'S/ '+shipping),
+      'Total: S/ '+total,
+      '', 'Comprobante adjunto.', '', 'Astral Brand'
     ].join(newline);
     const confirmationMessage = [
       'Hola '+order.customer+',',
       '',
       'Tu compra fue realizada con éxito. Recibimos tu comprobante y estamos verificando el pago.',
       'Código de compra: '+orderId,
-      '',
-      delivery,
+      '', delivery,
       'Método de pago: '+order.payment,
       '', 'Productos:', lines, '',
-      'Subtotal: S/ '+order.subtotal,
-      'Envío: '+(order.shipping===0?'Gratis':'S/ '+order.shipping),
-      'Total: S/ '+order.total,
+      'Subtotal: S/ '+subtotal,
+      'Envío: '+(shipping===0?'Gratis':'S/ '+shipping),
+      'Total: S/ '+total,
       '', 'Cualquier duda, comunícate con nosotros por WhatsApp al +51 957 391 382.',
       '', 'Astral Brand'
     ].join(newline);
+    const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
+    const logoUrl = 'https://scplasenciac.github.io/astralbrand/assets/logomarca.jpg';
+    const emailHtml = value => '<!doctype html><html><body style="margin:0;background:#f7f6f2;color:#24251f;font-family:Arial,sans-serif"><div style="max-width:620px;margin:0 auto;padding:28px 24px"><div style="font-size:15px;line-height:1.7;white-space:normal">'+escapeHtml(value).replace(/\n/g,'<br>')+'</div><div style="margin-top:28px;padding-top:20px;border-top:1px solid #deddd6;text-align:center"><img src="'+logoUrl+'" alt="Astral Brand" width="150" style="display:block;width:150px;height:auto;margin:0 auto;border:0"></div></div></body></html>';
     const sender = {name:process.env.EMAIL_FROM_NAME || 'Astral Brand', email:process.env.EMAIL_FROM};
     const sendEmail = async payload => {
       const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -90,13 +105,13 @@ app.post('/api/orders', upload.single('receipt'), async (req,res) => {
     await Promise.all([
       sendEmail({
         sender, to:[{email:storeEmail}], replyTo:{email:order.email,name:order.customer},
-        subject:'Nuevo pedido '+orderId+' - Astral Brand', textContent:message,
+        subject:'Nuevo pedido '+orderId+' - Astral Brand', textContent:message, htmlContent:emailHtml(message),
         attachment:[{name:req.file.originalname,content:req.file.buffer.toString('base64')}]
       }),
       sendEmail({
         sender, to:[{email:order.email,name:order.customer}],
         subject:'Tu compra fue realizada con éxito - '+orderId+' | Astral Brand',
-        textContent:confirmationMessage
+        textContent:confirmationMessage, htmlContent:emailHtml(confirmationMessage)
       })
     ]);
     res.json({ok:true,orderId});
