@@ -36,11 +36,7 @@ app.post('/api/orders', upload.single('receipt'), async (req,res) => {
     const freeDeliveryDistricts = ['san borja','miraflores','barranco','surquillo','san isidro'];
     const normalizedDistrict = String(order.district).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     const coordinatedLocalDelivery = order.region === 'Lima' && freeDeliveryDistricts.includes(normalizedDistrict);
-    const eligiblePairs = new Map();
-    for (const item of order.items) {
-      if (item.promoEligible) eligiblePairs.set(item.collection || 'Genesis', (eligiblePairs.get(item.collection || 'Genesis') || 0) + 1);
-    }
-    const promoFreeShipping = !coordinatedLocalDelivery && [...eligiblePairs.values()].some(quantity => quantity >= 2);
+    const promoFreeShipping = !coordinatedLocalDelivery && order.items.length >= 2;
     const subtotal = Number(order.subtotal);
     const shipping = coordinatedLocalDelivery || promoFreeShipping ? 0 : 10;
     const total = subtotal + shipping;
@@ -52,7 +48,7 @@ app.post('/api/orders', upload.single('receipt'), async (req,res) => {
       'Dirección: Se coordinará directamente con el cliente',
       'Plazo: Se coordinará directamente con el cliente'
     ].join(newline) : [
-      'Entrega: '+(promoFreeShipping?'Gratis por la promoción 2 polos por S/ 120':'S/ 10'),
+      'Entrega: '+(promoFreeShipping?'Gratis por comprar 2 o más polos':'S/ 10'),
       'Zona: '+order.district+', '+order.province+', '+order.region,
       'Modalidad: Envío a la agencia Shalom más cercana',
       'Agencia Shalom: '+(order.agency?.name || 'Por coordinar según el distrito'),
