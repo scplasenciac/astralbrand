@@ -87,3 +87,10 @@ aside>p,.fields label{font-size:11px}.fields input,.fields select{font-size:13px
 
 /* Larger carousel and balanced two-column craft section */
 .craft{grid-template-columns:minmax(300px,.95fr) minmax(0,1.15fr);gap:7%;padding:80px 9%;min-height:540px}.craft .photo-record{width:min(100%,350px);height:auto;aspect-ratio:1;margin-inline:auto}.craft .record-photo,.craft .record-shade{inset:21px;width:calc(100% - 42px);height:calc(100% - 42px)}@media(max-width:700px){.craft{grid-template-columns:1fr;gap:32px;padding:55px 8%}.craft .photo-record{width:min(100%,280px)}}
+/* Model photos in the hero and complete size charts in the process carousel. */
+.hero-lifestyle-photo{width:min(100%,390px);height:min(410px,100%);max-height:410px;object-fit:cover;object-position:center 38%;border-radius:46% 46% 42% 42%;mix-blend-mode:normal;filter:drop-shadow(0 18px 18px #25221d22)}
+.craft .record-photo{object-fit:contain;object-position:center;border-radius:12px;background:#d8c7b3;border:0}
+.craft .record-shade{display:none}
+.craft .record-caption{bottom:8px;font-size:8px}
+.craft .record-caption small{font-size:6px}
+@media(max-width:700px){.hero-lifestyle-photo{width:min(100%,320px);height:min(310px,100%);max-height:310px}.craft .record-photo{border-radius:9px}.craft .record-caption{bottom:5px}}
