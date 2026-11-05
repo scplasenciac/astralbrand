@@ -28,6 +28,7 @@ app.post('/api/orders', upload.single('receipt'), async (req,res) => {
     const order = JSON.parse(req.body.order || '{}');
     if (!order.customer || !order.email || !order.region || !order.province || !order.district || !order.items?.length || !Number.isFinite(order.total)) return res.status(400).json({error:'Faltan datos del pedido. Regresa al paso de entrega y completa el formulario.'});
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(order.email).trim())) return res.status(400).json({error:'Ingresa un correo electrónico válido para recibir la confirmación.'});
+    if (String(order.payment || '').startsWith('Depósito en cuenta') && !['BCP','Interbank','Scotiabank'].includes(order.bank)) return res.status(400).json({error:'Selecciona BCP, Interbank o Scotiabank para el depósito.'});
     const required = ['BREVO_API_KEY','EMAIL_FROM'];
     const missing = required.filter(key => !process.env[key]);
     if (missing.length) return res.status(503).json({error:'La tienda aún debe configurar el envío de correos. Contacta a Astral Brand por WhatsApp para completar tu compra.'});
@@ -84,7 +85,19 @@ app.post('/api/orders', upload.single('receipt'), async (req,res) => {
     ].join(newline);
     const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
     const logoUrl = 'https://scplasenciac.github.io/astralbrand/assets/logomarca.jpg';
-    const emailHtml = value => '<!doctype html><html><body style="margin:0;background:#f7f6f2;color:#24251f;font-family:Arial,sans-serif"><div style="max-width:620px;margin:0 auto;padding:28px 24px"><div style="font-size:15px;line-height:1.7;white-space:normal">'+escapeHtml(value).replace(/\n/g,'<br>')+'</div><div style="margin-top:28px;padding-top:20px;border-top:1px solid #deddd6;text-align:center"><img src="'+logoUrl+'" alt="Astral Brand" width="150" style="display:block;width:150px;height:auto;margin:0 auto;border:0"></div></div></body></html>';
+    const emailHtml = (heading,intro) => {
+      const detailRows = [
+        ['Código de compra',orderId],
+        ['Cliente',order.customer],
+        ['Correo',order.email],
+        ['Entrega',delivery.replace(/\n/g,' · ')],
+        ['Forma de pago',order.payment],
+        ['Banco',order.bank || '—']
+      ].map(([label,value]) => '<tr><td style="padding:10px 12px;border-bottom:1px solid #ebe9e2;color:#77786f;width:34%;font-size:13px">'+escapeHtml(label)+'</td><td style="padding:10px 12px;border-bottom:1px solid #ebe9e2;font-size:13px">'+escapeHtml(value)+'</td></tr>').join('');
+      const productRows = order.items.map(item => '<tr><td style="padding:12px;border-bottom:1px solid #ebe9e2;font-size:13px"><strong>'+escapeHtml(item.artist || item.collection || 'Astral Brand')+'</strong><br>'+escapeHtml(item.name)+' · talla '+escapeHtml(item.size)+'</td><td style="padding:12px;border-bottom:1px solid #ebe9e2;text-align:right;white-space:nowrap;font-size:13px">S/ '+escapeHtml(item.price)+'</td></tr>').join('');
+      const totals = [['Subtotal','S/ '+subtotal],['Envío',shipping===0?'Gratis':'S/ '+shipping],['Total','S/ '+total]].map(([label,value],index) => '<tr><td style="padding:9px 12px;text-align:right;color:#77786f;font-size:13px">'+label+'</td><td style="padding:9px 12px;text-align:right;white-space:nowrap;font-size:13px;'+(index===2?'font-weight:bold;color:#24251f;border-top:1px solid #24251f':'')+'">'+escapeHtml(value)+'</td></tr>').join('');
+      return '<!doctype html><html><body style="margin:0;background:#f2f1ec;color:#24251f;font-family:Arial,sans-serif"><div style="max-width:640px;margin:0 auto;padding:24px 14px"><div style="background:#252722;padding:22px 24px;text-align:center"><img src="'+logoUrl+'" alt="Astral Brand" width="108" style="display:block;width:108px;height:auto;margin:0 auto 14px;border:0"><div style="color:#f5f2ea;font-size:19px;font-weight:bold">'+escapeHtml(heading)+'</div></div><div style="background:#fff;padding:24px"><p style="margin:0 0 20px;font-size:14px;line-height:1.65">'+escapeHtml(intro)+'</p><h2 style="margin:0 0 8px;font-size:14px;letter-spacing:.5px">DETALLE DEL PEDIDO</h2><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:22px">'+detailRows+'</table><h2 style="margin:0 0 8px;font-size:14px;letter-spacing:.5px">PRODUCTOS</h2><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse">'+productRows+totals+'</table><p style="margin:22px 0 0;padding-top:16px;border-top:1px solid #ebe9e2;color:#686960;font-size:12px;line-height:1.6">Cualquier duda, escríbenos por WhatsApp al <a href="https://wa.me/51957391382" style="color:#24251f">+51 957 391 382</a>.</p></div><div style="padding:14px;text-align:center;color:#85857d;font-size:11px">Astral Brand · Tu música, tu universo</div></div></body></html>';
+    };
     const sender = {name:process.env.EMAIL_FROM_NAME || 'Astral Brand', email:process.env.EMAIL_FROM};
     const sendEmail = async payload => {
       const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -101,13 +114,13 @@ app.post('/api/orders', upload.single('receipt'), async (req,res) => {
     await Promise.all([
       sendEmail({
         sender, to:[{email:storeEmail}], replyTo:{email:order.email,name:order.customer},
-        subject:'Nuevo pedido '+orderId+' - Astral Brand', textContent:message, htmlContent:emailHtml(message),
+        subject:'Nuevo pedido '+orderId+' - Astral Brand', textContent:message, htmlContent:emailHtml('Nuevo pedido recibido','Se recibió un pedido y el comprobante de pago está adjunto para su verificación.'),
         attachment:[{name:req.file.originalname,content:req.file.buffer.toString('base64')}]
       }),
       sendEmail({
         sender, to:[{email:order.email,name:order.customer}],
         subject:'Tu compra fue realizada con éxito - '+orderId+' | Astral Brand',
-        textContent:confirmationMessage, htmlContent:emailHtml(confirmationMessage)
+        textContent:confirmationMessage, htmlContent:emailHtml('Tu compra fue realizada con éxito','Hola '+order.customer+', recibimos tu comprobante y estamos verificando el pago.')
       })
     ]);
     res.json({ok:true,orderId});
