@@ -61,4 +61,3 @@ Render Free no permite conexiones salientes por SMTP; esta API usa la API HTTPS 
 No agregues comillas a los valores. Al guardar las variables, Render vuelve a desplegar el servicio. El remitente debe estar verificado en Brevo antes de hacer una compra real. La API de envío se conecta por HTTPS y puede enviar a direcciones de Gmail, Outlook/Hotmail u otros proveedores.
 
 Para desarrollo local, configura esas mismas variables en un archivo `.env` basado en `.env.example`. El endpoint `/health` debe responder `{"ok":true}` cuando la API esté disponible.
-
